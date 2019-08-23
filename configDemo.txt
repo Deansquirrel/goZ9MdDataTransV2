@@ -1,0 +1,41 @@
+[total]
+# 控制台日志输出
+stdOut=false
+# 日志输出级别 debug、info、warn、error
+logLevel="warn"
+
+[ssConfig]
+address=""
+
+[runMode]
+# 运行模式,MdCollect|BbRestore
+mode=""
+
+[onlineConfig]
+# 线上连接信息
+address=""
+
+[svrConfig]
+# 服务器地址，如 127.0.0.1
+address=""
+
+[localDb]
+# 门店库连接信息
+server=""
+port=1433
+dbName=""
+user=""
+pwd=""
+
+[task]
+# cron
+updateMdYyInfoCron=""
+updateZxKcCron=""
+updateMdHpXsSlHzCron=""
+bbRestoreCron=""
+
+[service]
+# 安装为服务时所需配置
+name=""
+displayName=""
+description=""
