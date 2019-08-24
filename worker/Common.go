@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"github.com/Deansquirrel/goServiceSupportHelper"
 	"github.com/Deansquirrel/goToolCron"
-	"github.com/Deansquirrel/goToolMSSql"
 	"github.com/Deansquirrel/goToolMSSqlHelper"
 	"github.com/Deansquirrel/goToolSVRV3"
-	"github.com/Deansquirrel/goToolSVRZ5"
 	"github.com/Deansquirrel/goZ9MdDataTransV2/global"
 	"github.com/Deansquirrel/goZ9MdDataTransV2/object"
 	"github.com/Deansquirrel/goZ9MdDataTransV2/repository"
@@ -39,101 +37,49 @@ func (c *common) checkSysConfig() bool {
 }
 
 func (c *common) refreshLocalDbConfig() error {
-	var dbConfig *goToolMSSql.MSSqlConfig
-	var err error
-	switch global.SysConfig.RunMode.Mode {
-	case string(object.RunModeMdCollect):
-		dbConfig, err = goToolSVRZ5.GetSQLConfig(global.SysConfig.SvrConfig.Address, goToolSVRZ5.MD)
-		if err != nil {
-			errMsg := fmt.Sprintf("get dbConfig from svr z5 md err: %s", err.Error())
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if dbConfig == nil {
-			errMsg := fmt.Sprintf("get dbConfig from svr v5 return nil")
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		accList, err := goToolSVRZ5.GetAccountList(goToolMSSqlHelper.ConvertDbConfigTo2000(dbConfig), goToolSVRZ5.MD)
-		if err != nil {
-			errMsg := fmt.Sprintf("get acc list from svr z5 md err: %s", err.Error())
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if accList == nil {
-			errMsg := fmt.Sprintf("get acc list from svr z5 md err: return nil")
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if len(accList) < 1 {
-			errMsg := fmt.Sprintf("get acc list from svr z5 md err: list is empty")
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if global.SysConfig.LocalDb.DbName != "" {
-			flag := false
-			for _, acc := range accList {
-				if acc == global.SysConfig.LocalDb.DbName {
-					flag = true
-					break
-				}
-			}
-			if !flag {
-				log.Warn(fmt.Sprintf("db [%s] is not a effective acc", global.SysConfig.LocalDb.DbName))
-				global.SysConfig.LocalDb.DbName = ""
-			}
-		}
-		if global.SysConfig.LocalDb.DbName == "" {
-			global.SysConfig.LocalDb.DbName = accList[0]
-		}
-	case string(object.RunModeBbRestore):
-		dbConfig, err = goToolSVRV3.GetSQLConfig(global.SysConfig.SvrConfig.Address, 7091, "91", "9101")
-		if err != nil {
-			errMsg := fmt.Sprintf("get dbConfig from svr v3 err: %s", err.Error())
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if dbConfig == nil {
-			errMsg := fmt.Sprintf("get dbConfig from svr v3 return nil")
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		accList, err := goToolSVRV3.GetAccountList(goToolMSSqlHelper.ConvertDbConfigTo2000(dbConfig), "91")
-		if err != nil {
-			errMsg := fmt.Sprintf("get acc list err: %s", err.Error())
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if accList == nil {
-			errMsg := fmt.Sprintf("get acc list from svr v3 err: return nil")
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if len(accList) < 1 {
-			errMsg := fmt.Sprintf("get acc list from svr v3 err: list is empty")
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if global.SysConfig.LocalDb.DbName != "" {
-			flag := false
-			for _, acc := range accList {
-				if acc == global.SysConfig.LocalDb.DbName {
-					flag = true
-					break
-				}
-			}
-			if !flag {
-				log.Warn(fmt.Sprintf("db [%s] is not a effective acc", global.SysConfig.LocalDb.DbName))
-				global.SysConfig.LocalDb.DbName = ""
-			}
-		}
-		if global.SysConfig.LocalDb.DbName == "" {
-			global.SysConfig.LocalDb.DbName = accList[0]
-		}
+	port := -1
+	appType := ""
+	clientType := ""
+
+	switch object.RunMode(global.SysConfig.RunMode.Mode) {
+	case object.RunModeMdCollect:
+		port = 7083
+		appType = "83"
+		clientType = "8301"
+	case object.RunModeBbRestore:
+		port = 7091
+		appType = "91"
+		clientType = "9101"
 	default:
 		errMsg := fmt.Sprintf("unexpected runmode %s", global.SysConfig.RunMode.Mode)
 		log.Error(errMsg)
 		global.Cancel()
+		return errors.New(errMsg)
+	}
+
+	dbConfig, err := goToolSVRV3.GetSQLConfig(global.SysConfig.SvrConfig.Address, port, appType, clientType)
+	if err != nil {
+		errMsg := fmt.Sprintf("get dbConfig from svr v3 err: %s", err.Error())
+		log.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	if dbConfig == nil {
+		errMsg := fmt.Sprintf("get dbConfig from svr v3 return nil")
+		log.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	accList, err := goToolSVRV3.GetAccountList(goToolMSSqlHelper.ConvertDbConfigTo2000(dbConfig), appType)
+	if err != nil {
+		errMsg := fmt.Sprintf("get acc list err: %s", err.Error())
+		log.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	if accList == nil || len(accList) <= 0 {
+		errMsg := "acc list is empty"
+		log.Error(errMsg)
 		return errors.New(errMsg)
 	}
 
@@ -142,6 +88,22 @@ func (c *common) refreshLocalDbConfig() error {
 	global.SysConfig.LocalDb.User = dbConfig.User
 	global.SysConfig.LocalDb.Pwd = dbConfig.Pwd
 
+	if global.SysConfig.LocalDb.DbName != "" {
+		flag := false
+		for _, acc := range accList {
+			if acc == global.SysConfig.LocalDb.DbName {
+				flag = true
+				break
+			}
+		}
+		if !flag {
+			log.Warn(fmt.Sprintf("db [%s] is not a effective acc", global.SysConfig.LocalDb.DbName))
+			global.SysConfig.LocalDb.DbName = ""
+		}
+	}
+	if global.SysConfig.LocalDb.DbName == "" {
+		global.SysConfig.LocalDb.DbName = accList[0]
+	}
 	if global.SysConfig.LocalDb.DbName == "" {
 		errMsg := fmt.Sprintf("无可用账套")
 		log.Error(errMsg)
@@ -161,22 +123,17 @@ func (c *common) StartService() {
 		}
 	}
 
+	go func() {
+		goServiceSupportHelper.SetOtherInfo(
+			repository.NewCommon().GetLocalDbConfig(),
+			1,
+			goServiceSupportHelper.SVRV3)
+	}()
+
 	switch global.SysConfig.RunMode.Mode {
 	case string(object.RunModeMdCollect):
-		go func() {
-			goServiceSupportHelper.SetOtherInfo(
-				repository.NewCommon().GetLocalDbConfig(),
-				1,
-				goServiceSupportHelper.SVRZ5)
-		}()
 		c.addMdWorker()
 	case string(object.RunModeBbRestore):
-		go func() {
-			goServiceSupportHelper.SetOtherInfo(
-				repository.NewCommon().GetLocalDbConfig(),
-				1,
-				goServiceSupportHelper.SVRV3)
-		}()
 		c.addBbWorker()
 	default:
 		log.Warn(fmt.Sprintf("unknown runmode %s", global.SysConfig.RunMode.Mode))
@@ -211,16 +168,16 @@ func (c *common) formatJob(key string, cmd func(id string)) func(id string) {
 
 func (c *common) addMdWorker() {
 	log.Debug("add md worker")
-	worker := NewMdWorker()
-	c.addWorker("UpdateMdYyInfo", worker.UpdateMdYyInfo, global.SysConfig.Task.UpdateMdYyInfoCron)
-	c.addWorker("UpdateZxKc", worker.UpdateZxKc, global.SysConfig.Task.UpdateZxKcCron)
-	c.addWorker("UpdateMdHpXsSlHz", worker.UpdateMdHpXsSlHz, global.SysConfig.Task.UpdateMdHpXsSlHzCron)
+	//worker := NewMdWorker()
+	//c.addWorker("UpdateMdYyInfo", worker.UpdateMdYyInfo, global.SysConfig.Task.UpdateMdYyInfoCron)
+	//c.addWorker("UpdateZxKc", worker.UpdateZxKc, global.SysConfig.Task.UpdateZxKcCron)
+	//c.addWorker("UpdateMdHpXsSlHz", worker.UpdateMdHpXsSlHz, global.SysConfig.Task.UpdateMdHpXsSlHzCron)
 }
 
 func (c *common) addBbWorker() {
 	log.Debug("add bb worker")
-	worker := NewBbWorker()
-	c.addWorker("RestoreMdYyInfo", worker.RestoreMdYyInfo, global.SysConfig.Task.BbRestoreCron)
-	c.addWorker("RestoreZxKc", worker.RestoreZxKc, global.SysConfig.Task.BbRestoreCron)
-	c.addWorker("RestoreMdHpXsSlHz", worker.RestoreMdHpXsSlHz, global.SysConfig.Task.BbRestoreCron)
+	//worker := NewBbWorker()
+	//c.addWorker("RestoreMdYyInfo", worker.RestoreMdYyInfo, global.SysConfig.Task.BbRestoreCron)
+	//c.addWorker("RestoreZxKc", worker.RestoreZxKc, global.SysConfig.Task.BbRestoreCron)
+	//c.addWorker("RestoreMdHpXsSlHz", worker.RestoreMdHpXsSlHz, global.SysConfig.Task.BbRestoreCron)
 }
