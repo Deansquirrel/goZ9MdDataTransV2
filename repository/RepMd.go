@@ -1,9 +1,9 @@
 package repository
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
+	"github.com/Deansquirrel/goToolCommon"
 	"github.com/Deansquirrel/goToolMSSql2000"
 	"github.com/Deansquirrel/goToolMSSqlHelper"
 	"github.com/Deansquirrel/goZ9MdDataTransV2/object"
@@ -27,78 +27,45 @@ const (
 		"declare @enddate smalldatetime  " +
 		"set @begdate = ? " +
 		"set @enddate = ? " +
-		"Select billdate as 营业日,brid as 门店id,Sum(tc) As 次数,Sum(realmy) As 金额 " +
-		"From ( " +
+		"Select billdate as 营业日,brid as 门店id,Sum(tc) As 次数,Sum(realmy) As 金额 From ( " +
 		"	Select Top 0 Null As billdate,Null As brid,Null As tc,Null As realmy " +
 		"	Union All " +
-		"	Select xsckbilldate,xsckoprbrid,Cast(xsckpeople As int),xsckrealmy From [ywxsckt1] " +
-		"	Where xsckbilldate>=@begdate And xsckbilldate<@enddate " +
-		"	%s " +
-		"	Union All " +
-		"	Select qdxsbilldate,qdxsdoprbrid,Cast(1 As int),qdxsrealmy From [ywddqdxst] " +
-		"	Where qdxsbilldate>=@begdate And qdxsbilldate<@enddate " +
-		"	Union All " +
-		"	Select jrdhbilldate,jrdhoprbrid,Cast(1 As int),jrdhtktsum From [ywjrdht] a " +
-		"	Where jrdhbilldate>=@begdate And jrdhbilldate<@enddate " +
-		")  b group by billdate,brid " +
+		"	SELECT [ckyyr],[ckmdid],case when [ckcxbj]=1 then -1 else 1 end as [num],[ckcjje] as [srmy] " +
+		"	FROM [z3xsckt] WITH(NOLOCK) " +
+		"	WHERE [ckyyr]>=@begdate And [ckyyr]<dateadd(d,1,@enddate) " +
+		"	UNION ALL " +
+		"	SELECT [ckyyr],[ckmdid],case when [ckcxbj]=1 then -1 else 1 end as [num],[ckcjje] as [srmy] " +
+		"	FROM [z3xscklst] " +
+		"	WHERE [ckyyr]>=@begdate And [ckyyr]<dateadd(d,1,@enddate) " +
+		")  b " +
+		"group by billdate,brid " +
 		"order by billdate asc"
-	sqlGetJtMdYyInfoTemplete = "" +
-		"	Union All " +
-		"	Select xsckbilldate,xsckoprbrid,Cast(xsckpeople As int),xsckrealmy From [%s] " +
-		"	Where xsckbilldate>=@begdate And xsckbilldate<@enddate "
 	sqlGetMdId = "" +
 		"select coid " +
 		"from zlcompany"
 	sqlGetZxKc = "" +
-		"select b.coid,a.gsid,a.gsqty " +
-		"from xttz a " +
-		"inner join zlcompany b on 1=1 " +
-		"where a.dptid = -11"
+		"SELECT B.[coid],A.[tzhpid],A.[tzsl],A.[tzbdsj] " +
+		"FROM Z3XTTZ A " +
+		"INNER JOIN ZLCOMPANY B ON 1=1 " +
+		"WHERE A.[tzckid] = 0 AND A.[tzbdsj] > ?"
 	sqlGetMdHpXsSlHz = "" +
 		"declare @begdate smalldatetime " +
 		"declare @enddate smalldatetime " +
 		"set @begdate = ? " +
 		"set @enddate = ? " +
-		"select rq as 营业日,brid as 门店id,gsid as 货品id,sum(qty) as [销售数量（min）] " +
-		"from ( " +
-		"    select top 0 null as rq,null as gsid ,null as qty,null as brid " +
-		"    Union All " +
-		"    select xsckhdbilldate,xsckhdgsid,xsckhdqty,xsckhdoprbrid " +
-		"    from ywxsckhdt " +
-		"    where xsckhdbilldate>=convert(varchar(10),@begdate,121) and xsckhdbilldate<convert(varchar(10),dateadd(d,1,@enddate),121) " +
-		"	 %s " +
-		"    Union All " +
-		"    select xsthhdbilldate,xsthhdgsid,-xsthhdqty,xsthhdoprbrid " +
-		"    from ywxsthhdt " +
-		"    where xsthhdbilldate>=convert(varchar(10),@begdate,121) and xsthhdbilldate<convert(varchar(10),dateadd(d,1,@enddate),121) " +
-		"    Union All " +
-		"    select qdxshdbilldate,qdxshdgsid,qdxshdqty,qdxshdoprbrid " +
-		"    from ywddqdxshdt " +
-		"    where qdxshdbilldate>=convert(varchar(10),@begdate,121) and qdxshdbilldate<convert(varchar(10),dateadd(d,1,@enddate),121) " +
-		"    Union All " +
-		"    select ddjfhdbilldate,ddjfhdgsid,ddjfhdqty,ddjfhdoprbrid " +
-		"    from ywkhddjfhdt " +
-		"    where ddjfhdbilldate>=convert(varchar(10),@begdate,121) and ddjfhdbilldate<convert(varchar(10),dateadd(d,1,@enddate),121) and substring(ddjfhdsno,3,3)=(select coid from zlcompany) " +
-		"    union all " +
-		"    select jrdhbilldate,a.jrdhhdgsid,a.jrdhhdqty,jrdhhdoprbrid " +
-		"    from ywjrdhhdt a " +
-		"    inner join ywjrdht b on left(a.jrdhhdrwsno,12)=b.jrdhsno " +
-		"    where b.jrdhbilldate>=convert(varchar(10),@begdate,121) and b.jrdhbilldate<convert(varchar(10),dateadd(d,1,@enddate),121) " +
+		"select rq as 营业日,brid as 门店id,gsid as 货品id,sum(qty) as [销售数量（min）] from ( " +
+		"   select top 0 null as rq,null as brid ,null as gsid ,null as qty " +
+		"   Union All " +
+		"	SELECT [ckdyyr],[ckdmdid],[ckdhpid],[ckdzxsl] " +
+		"	FROM [z3xsckdt] WITH(NOLOCK) " +
+		"	WHERE [ckdyyr] >= @begdate AND [ckdyyr] < dateadd(d,1,@enddate) " +
+		"	UNION ALL " +
+		"	SELECT [ckdyyr],[ckdmdid],[ckdhpid],[ckdzxsl] " +
+		"	FROM [z3xsckdlst] " +
+		"	WHERE [ckdyyr] >= @begdate AND [ckdyyr] < dateadd(d,1,@enddate) " +
 		")a " +
-		"group by rq,brid,gsid  "
-	sqlGetJtMdHpXsSlHzTemplete = "" +
-		"    Union All " +
-		"    select xsckhdbilldate,xsckhdgsid,xsckhdqty,xsckhdoprbrid " +
-		"    from [%s] " +
-		"    where xsckhdbilldate>=convert(varchar(10),@begdate,121) and xsckhdbilldate<convert(varchar(10),dateadd(d,1,@enddate),121) "
-	sqlGetJtMdYyInfoTableList = "" +
-		"select name " +
-		"from sysobjects " +
-		"where xtype='U' and name like 'ywxsckt1[_]__[_]jt'"
-	sqlGetJtMdHpXsSlHzTableList = "" +
-		"select name " +
-		"from sysobjects " +
-		"where xtype='U' and name like 'ywxsckhdt[_]__[_]jt'"
+		"group by rq,brid,gsid " +
+		"order by rq"
 )
 
 type repMd struct {
@@ -220,11 +187,7 @@ func (r *repMd) GetMdId() (int, error) {
 }
 
 func (r *repMd) GetMdYyInfo(begDate string, endDate string) ([]*object.MdYyInfo, error) {
-	sqlStr, err := r.getMdYyInfoSql()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlStr, begDate, endDate)
+	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlGetMdYyInfo, begDate, endDate)
 	if err != nil {
 		errMsg := fmt.Sprintf("GetMdYyInfo err: %s", err.Error())
 		log.Error(errMsg)
@@ -260,20 +223,8 @@ func (r *repMd) GetMdYyInfo(begDate string, endDate string) ([]*object.MdYyInfo,
 	return rList, nil
 }
 
-func (r *repMd) getMdYyInfoSql() (string, error) {
-	jtTable, err := r.GetJtMdYyInfoTableList()
-	if err != nil {
-		return "", err
-	}
-	var buffer bytes.Buffer
-	for _, t := range jtTable {
-		buffer.WriteString(fmt.Sprintf(sqlGetJtMdYyInfoTemplete, t))
-	}
-	return fmt.Sprintf(sqlGetMdYyInfo, buffer.String()), nil
-}
-
-func (r *repMd) GetZxKc() ([]*object.ZxKc, error) {
-	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlGetZxKc)
+func (r *repMd) GetZxKc(lastTime time.Time) ([]*object.ZxKc, error) {
+	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlGetZxKc, goToolCommon.GetDateTimeStrWithMillisecond(lastTime))
 	if err != nil {
 		errMsg := fmt.Sprintf("GetZxKc err: %s", err.Error())
 		log.Error(errMsg)
@@ -284,9 +235,10 @@ func (r *repMd) GetZxKc() ([]*object.ZxKc, error) {
 	}()
 	var fMdId, fHpId int
 	var fSl float64
+	var fOprTime time.Time
 	rList := make([]*object.ZxKc, 0)
 	for rows.Next() {
-		err = rows.Scan(&fMdId, &fHpId, &fSl)
+		err = rows.Scan(&fMdId, &fHpId, &fSl, &fOprTime)
 		if err != nil {
 			errMsg := fmt.Sprintf("read GetZxKc data err: %s", err.Error())
 			log.Error(errMsg)
@@ -296,7 +248,7 @@ func (r *repMd) GetZxKc() ([]*object.ZxKc, error) {
 			FMdId:    fMdId,
 			FHpId:    fHpId,
 			FSl:      fSl,
-			FOprTime: time.Now(),
+			FOprTime: fOprTime,
 		})
 	}
 	if rows.Err() != nil {
@@ -308,11 +260,7 @@ func (r *repMd) GetZxKc() ([]*object.ZxKc, error) {
 }
 
 func (r *repMd) GetMdHpXsSlHz(begDate string, endDate string) ([]*object.MdHpXsSlHz, error) {
-	sqlStr, err := r.getMdHpXsSlHzSql()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlStr, begDate, endDate)
+	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlGetMdHpXsSlHz, begDate, endDate)
 	if err != nil {
 		errMsg := fmt.Sprintf("GetMdHpXsSlHz err: %s", err.Error())
 		log.Error(errMsg)
@@ -342,76 +290,6 @@ func (r *repMd) GetMdHpXsSlHz(begDate string, endDate string) ([]*object.MdHpXsS
 	}
 	if rows.Err() != nil {
 		errMsg := fmt.Sprintf("read GetMdHpXsSlHz data err: %s", rows.Err().Error())
-		log.Error(errMsg)
-		return nil, errors.New(errMsg)
-	}
-	return rList, nil
-}
-
-func (r *repMd) getMdHpXsSlHzSql() (string, error) {
-	jtTable, err := r.GetJtMdHpXsSlHzTableList()
-	if err != nil {
-		return "", err
-	}
-	var buffer bytes.Buffer
-	for _, t := range jtTable {
-		buffer.WriteString(fmt.Sprintf(sqlGetJtMdHpXsSlHzTemplete, t))
-	}
-	return fmt.Sprintf(sqlGetMdHpXsSlHz, buffer.String()), nil
-}
-
-func (r *repMd) GetJtMdYyInfoTableList() ([]string, error) {
-	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlGetJtMdYyInfoTableList)
-	if err != nil {
-		errMsg := fmt.Sprintf("GetJtTableList err: %s", err.Error())
-		log.Error(errMsg)
-		return nil, errors.New(errMsg)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	rList := make([]string, 0)
-	for rows.Next() {
-		var t string
-		err = rows.Scan(&t)
-		if err != nil {
-			errMsg := fmt.Sprintf("GetJtTableList read data err: %s", err.Error())
-			log.Error(errMsg)
-			return nil, errors.New(errMsg)
-		}
-		rList = append(rList, t)
-	}
-	if rows.Err() != nil {
-		errMsg := fmt.Sprintf("GetJtTableList read data err: %s", rows.Err().Error())
-		log.Error(errMsg)
-		return nil, errors.New(errMsg)
-	}
-	return rList, nil
-}
-
-func (r *repMd) GetJtMdHpXsSlHzTableList() ([]string, error) {
-	rows, err := goToolMSSqlHelper.GetRowsBySQL2000(r.dbConfig, sqlGetJtMdHpXsSlHzTableList)
-	if err != nil {
-		errMsg := fmt.Sprintf("GetJtMdHpXsSlHzTableList err: %s", err.Error())
-		log.Error(errMsg)
-		return nil, errors.New(errMsg)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	rList := make([]string, 0)
-	for rows.Next() {
-		var t string
-		err = rows.Scan(&t)
-		if err != nil {
-			errMsg := fmt.Sprintf("GetJtMdHpXsSlHzTableList read data err: %s", err.Error())
-			log.Error(errMsg)
-			return nil, errors.New(errMsg)
-		}
-		rList = append(rList, t)
-	}
-	if rows.Err() != nil {
-		errMsg := fmt.Sprintf("GetJtMdHpXsSlHzTableList read data err: %s", rows.Err().Error())
 		log.Error(errMsg)
 		return nil, errors.New(errMsg)
 	}

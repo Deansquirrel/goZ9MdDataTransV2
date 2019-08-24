@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"fmt"
 	"github.com/Deansquirrel/goServiceSupportHelper"
 	"github.com/Deansquirrel/goToolCommon"
 	"github.com/Deansquirrel/goToolMSSqlHelper"
@@ -10,7 +11,9 @@ import (
 	"time"
 )
 
-var zxKc map[int]float64
+import log "github.com/Deansquirrel/goToolLog"
+
+var zxKcLastUpdate time.Time
 var xsSl map[int]*object.MdHpXsSlHz
 
 const (
@@ -18,7 +21,7 @@ const (
 )
 
 func init() {
-	zxKc = make(map[int]float64)
+	zxKcLastUpdate = goToolMSSqlHelper.GetDefaultOprTime()
 	xsSl = make(map[int]*object.MdHpXsSlHz)
 }
 
@@ -49,7 +52,7 @@ func (r *mdWorker) UpdateMdYyInfo(id string) {
 	if goToolCommon.GetDateStr(lastUpdate) == goToolCommon.GetDateStr(goToolMSSqlHelper.GetDefaultOprTime()) {
 		lastUpdate = tClose
 	}
-	endDate := tClose.Add(time.Hour * 24)
+	endDate := tClose
 	list, err := repMd.GetMdYyInfo(goToolCommon.GetDateStr(lastUpdate), goToolCommon.GetDateStr(endDate))
 	if err != nil {
 		_ = goServiceSupportHelper.JobErrRecord(id, err.Error())
@@ -75,43 +78,32 @@ func (r *mdWorker) UpdateMdYyInfo(id string) {
 
 func (r *mdWorker) UpdateZxKc(id string) {
 	repMd := repository.NewRepMd()
-	kcList, err := repMd.GetZxKc()
+	checkTime := zxKcLastUpdate.Add(-time.Second)
+	kcList, err := repMd.GetZxKc(checkTime)
 	if err != nil {
 		_ = goServiceSupportHelper.JobErrRecord(id, err.Error())
 		return
 	}
-	for _, kc := range kcList {
-		zkc, ok := zxKc[kc.FHpId]
-		if ok {
-			if math.Dim(math.Max(zkc, kc.FSl), math.Min(zkc, kc.FSl)) >= minKcDifference {
-				err = r.updateZxKc(kc)
-				if err != nil {
-					_ = goServiceSupportHelper.JobErrRecord(id, err.Error())
-					return
-				}
-			}
-		} else {
-			err = r.updateZxKc(kc)
-			if err != nil {
-				_ = goServiceSupportHelper.JobErrRecord(id, err.Error())
-				return
-			}
-		}
-	}
-}
-
-func (r *mdWorker) updateZxKc(d *object.ZxKc) error {
 	repOnline, err := repository.NewRepOnline()
 	if err != nil {
-		return err
+		_ = goServiceSupportHelper.JobErrRecord(id, err.Error())
+		return
 	}
-	err = repOnline.UpdateZxKc(d)
-	if err != nil {
-		return err
-	} else {
-		zxKc[d.FHpId] = d.FSl
+	uCount := 0
+	for _, kc := range kcList {
+		err = repOnline.UpdateZxKc(kc)
+		if err != nil {
+			_ = goServiceSupportHelper.JobErrRecord(id, err.Error())
+			return
+		}
+		uCount = uCount + 1
+		if goToolCommon.GetDateTimeStrWithMillisecond(kc.FOprTime) > goToolCommon.GetDateTimeStrWithMillisecond(zxKcLastUpdate) {
+			zxKcLastUpdate = kc.FOprTime
+		}
 	}
-	return nil
+	if uCount > 0 {
+		log.Info(fmt.Sprintf("UpdateZxKc %d", uCount))
+	}
 }
 
 func (r *mdWorker) UpdateMdHpXsSlHz(id string) {
@@ -170,6 +162,7 @@ func (r *mdWorker) updateMdHpXsSlHz(begDate string, endDate string) error {
 	uFlag := false
 	uDate := goToolMSSqlHelper.GetDefaultOprTime()
 
+	uCount := 0
 	for _, d := range list {
 		currD, ok := xsSl[d.FHpId]
 		if ok {
@@ -180,6 +173,7 @@ func (r *mdWorker) updateMdHpXsSlHz(begDate string, endDate string) error {
 				if err != nil {
 					return err
 				}
+				uCount = uCount + 1
 			} else if goToolCommon.GetDateStr(d.FYyDate) == goToolCommon.GetDateStr(currD.FYyDate) {
 				//当日数据
 				if math.Dim(math.Max(currD.FXsQty, d.FXsQty), math.Min(currD.FXsQty, d.FXsQty)) > minKcDifference {
@@ -188,6 +182,7 @@ func (r *mdWorker) updateMdHpXsSlHz(begDate string, endDate string) error {
 					if err != nil {
 						return err
 					}
+					uCount = uCount + 1
 				}
 			} else {
 				//历史数据
@@ -195,6 +190,7 @@ func (r *mdWorker) updateMdHpXsSlHz(begDate string, endDate string) error {
 				if err != nil {
 					return err
 				}
+				uCount = uCount + 1
 			}
 		} else {
 			//新增数据
@@ -203,11 +199,15 @@ func (r *mdWorker) updateMdHpXsSlHz(begDate string, endDate string) error {
 			if err != nil {
 				return err
 			}
+			uCount = uCount + 1
 		}
 		if goToolCommon.GetDateStr(d.FYyDate) > goToolCommon.GetDateStr(uDate) {
 			uDate = d.FYyDate
 		}
 		uFlag = true
+	}
+	if uCount > 0 {
+		log.Info(fmt.Sprintf("updateMdHpXsSlHz %d", uCount))
 	}
 	if uFlag {
 		err = repOnline.UpdateMdHpXsSlHzLastUpdate(uDate)

@@ -168,16 +168,16 @@ func (c *common) formatJob(key string, cmd func(id string)) func(id string) {
 
 func (c *common) addMdWorker() {
 	log.Debug("add md worker")
-	//worker := NewMdWorker()
-	//c.addWorker("UpdateMdYyInfo", worker.UpdateMdYyInfo, global.SysConfig.Task.UpdateMdYyInfoCron)
-	//c.addWorker("UpdateZxKc", worker.UpdateZxKc, global.SysConfig.Task.UpdateZxKcCron)
-	//c.addWorker("UpdateMdHpXsSlHz", worker.UpdateMdHpXsSlHz, global.SysConfig.Task.UpdateMdHpXsSlHzCron)
+	worker := NewMdWorker()
+	c.addWorker("UpdateMdYyInfo", worker.UpdateMdYyInfo, global.SysConfig.Task.UpdateMdYyInfoCron)
+	c.addWorker("UpdateZxKc", worker.UpdateZxKc, global.SysConfig.Task.UpdateZxKcCron)
+	c.addWorker("UpdateMdHpXsSlHz", worker.UpdateMdHpXsSlHz, global.SysConfig.Task.UpdateMdHpXsSlHzCron)
 }
 
 func (c *common) addBbWorker() {
 	log.Debug("add bb worker")
-	//worker := NewBbWorker()
-	//c.addWorker("RestoreMdYyInfo", worker.RestoreMdYyInfo, global.SysConfig.Task.BbRestoreCron)
-	//c.addWorker("RestoreZxKc", worker.RestoreZxKc, global.SysConfig.Task.BbRestoreCron)
-	//c.addWorker("RestoreMdHpXsSlHz", worker.RestoreMdHpXsSlHz, global.SysConfig.Task.BbRestoreCron)
+	worker := NewBbWorker()
+	c.addWorker("RestoreMdYyInfo", worker.RestoreMdYyInfo, global.SysConfig.Task.BbRestoreCron)
+	c.addWorker("RestoreZxKc", worker.RestoreZxKc, global.SysConfig.Task.BbRestoreCron)
+	c.addWorker("RestoreMdHpXsSlHz", worker.RestoreMdHpXsSlHz, global.SysConfig.Task.BbRestoreCron)
 }
