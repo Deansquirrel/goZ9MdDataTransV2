@@ -9,7 +9,7 @@ const (
 	//goServiceSupportHelper Version "1.0.7 Build20190823"
 	//PreVersion = "0.0.0 Build20190101"
 	//TestVersion = "0.0.0 Build20190101"
-	Version   = "0.0.0 Build20190101"
+	Version   = "2.0.0 Build20190824"
 	Type      = "Z9MdDataTransV2"
 	SecretKey = "Z9MdDataTransV2"
 )
