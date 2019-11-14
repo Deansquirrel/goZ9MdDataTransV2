@@ -47,9 +47,9 @@ func (c *common) refreshLocalDbConfig() error {
 		appType = "83"
 		clientType = "8301"
 	case object.RunModeBbRestore:
-		port = 7091
-		appType = "91"
-		clientType = "9101"
+		port = 7085
+		appType = "85"
+		clientType = "8501"
 	default:
 		errMsg := fmt.Sprintf("unexpected runmode %s", global.SysConfig.RunMode.Mode)
 		log.Error(errMsg)
